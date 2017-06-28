@@ -3,7 +3,11 @@
 package net.hhamalai
 
 import com.beust.klaxon.*
+import com.google.gson.GsonBuilder
+import kotlinx.coroutines.experimental.channels.ClosedSendChannelException
 import net.hhamalai.Messages.primaryKey
+import net.hhamalai.dao.TrackerDatabase
+import net.hhamalai.model.Location
 import org.jetbrains.ktor.util.buildByteBuffer
 import org.jetbrains.ktor.websocket.Frame
 import org.jetbrains.ktor.websocket.WebSocket
@@ -11,6 +15,8 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SchemaUtils.create
 
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.ktor.websocket.CloseReason
+import org.jetbrains.ktor.websocket.close
 
 
 import java.nio.ByteBuffer
@@ -36,9 +42,11 @@ object Trips : Table() {
 class TrackerServer {
     val usersCounter = AtomicInteger()
     val memberNames = ConcurrentHashMap<String, String>()
+    val trackerDatabase = TrackerDatabase("localhost")
     val members = ConcurrentHashMap<String, MutableList<WebSocket>>()
     val lastMessages = LinkedList<String>()
     val parser: Parser = Parser()
+    val gson = GsonBuilder().create()
 
     suspend fun memberJoin(member: String, socket: WebSocket) {
         val name = memberNames.computeIfAbsent(member) { "user${usersCounter.incrementAndGet()}" }
@@ -46,9 +54,15 @@ class TrackerServer {
         list.add(socket)
 
         if (list.size == 1) {
-            broadcast("server", "Member joined: $name.")
+            broadcast("{\"type\": \"join\", \"name\": \"$name\"}")
         }
 
+        val currentLocations = trackerDatabase.getMostRecents()
+        for (currentLocation in currentLocations) {
+            val jsonized = gson.toJson(currentLocation)
+            println(jsonized)
+            socket.send(Frame.Text(jsonized))
+        }
         val messages = synchronized(lastMessages) { lastMessages.toList() }
         for (message in messages) {
             socket.send(Frame.Text(message))
@@ -57,7 +71,7 @@ class TrackerServer {
 
     suspend fun memberRenamed(member: String, to: String) {
         val oldName = memberNames.put(member, to) ?: member
-        broadcast("server", "Member renamed from $oldName to $to")
+        broadcast("{\"type\": \"rename\", \"oldname\": \"$oldName\"  \"newname\": \"$to\"}")
     }
 
     suspend fun memberLeft(member: String, socket: WebSocket) {
@@ -66,7 +80,7 @@ class TrackerServer {
 
         if (connections != null && connections.isEmpty()) {
             val name = memberNames[member] ?: member
-            broadcast("server", "Member left: $name.")
+            broadcast("{\"type\": \"left\", \"name\": \"$name\"}")
         }
     }
 
@@ -84,7 +98,10 @@ class TrackerServer {
         val velocity = json.double("vel")
         val tripId = json.int("tripId")
         json.put("name", name)
-
+        trackerDatabase.updateLocation(
+                name,
+                Location(latitude?.toFloat() ?: 0f, longitude?.toFloat() ?: 0f),
+                velocity?.toFloat() ?: 0f)
 
         val serialized = json.toJsonString()
 
@@ -149,6 +166,16 @@ class TrackerServer {
     }
 
     suspend fun List<WebSocket>.send(frame: Frame) {
-        forEach { it.send(frame.copy()) }
+        forEach {
+            try {
+                it.send(frame.copy())
+            } catch (t: Throwable) {
+                try {
+                    it.close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, ""))
+                } catch (ignore: ClosedSendChannelException) {
+
+                }
+            }
+        }
     }
 }

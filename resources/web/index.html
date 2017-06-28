@@ -1,1 +1,36 @@
-<h1>Tracker</h1>
+<html>
+<head>
+  <!-- Latest compiled and minified CSS -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css"
+        integrity="sha512-07I2e+7D8p6he1SIM+1twR5TIrhUQn9+I6yjqD53JQjFiMf8EtC93ty0/5vJTZGF8aAocvHYNEDJajGdNx1IsQ==" crossorigin=""/>
+  <style>
+    #mapid {
+      height: 100%;
+    }
+
+    .meter {
+      background-color: green;
+    }
+  </style>
+</head>
+<body>
+  <div id="mapid"></div>
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.2.0.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"
+        integrity="sha512-A7vV8IFfih/D732iSSKi20u/ooOfj/AGehOKq0f4vLT1Zr2Y+RX7C+w8A1gaSasGtRUZpF/NZgzSAu4/Gc41Lg==" crossorigin=""></script>
+<script type="text/javascript">
+  var mymap = L.map('mapid').setView([51.505, -0.09], 13);
+  L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+    attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+    maxZoom: 18,
+    id: 'mapbox.streets',
+    accessToken: 'pk.eyJ1IjoiaGhhbWFsYWkiLCJhIjoiY2owOGQza3RoMDAwczMzbGszaW85YTFqYSJ9.5QSdnWeVR3YmP0LPRp-jcw'
+  }).addTo(mymap);
+  jQuery.getJSON("/v1/locations", function(data) {
+    console.log(data)
+  })
+</script>
+</body>
+</html>
