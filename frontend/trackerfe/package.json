@@ -1,0 +1,21 @@
+{
+  "name": "trackerfe",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "leaflet": "^1.0.3",
+    "react": "^15.6.1",
+    "react-dom": "^15.6.1",
+    "react-leaflet": "^1.3.1",
+    "react-websocket": "^1.1.7"
+  },
+  "devDependencies": {
+    "react-scripts": "1.0.7"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  }
+}
