@@ -102,7 +102,6 @@ internal suspend fun receivedMessage(id: String, command: String) {
             val newName = command.removePrefix("/user").trim()
             when {
                 newName.isEmpty() -> server.sendTo(id, "server::help", "/user [newName]")
-                newName.length > 50 -> server.sendTo(id, "server::help", "new name is too long: 50 characters limit")
                 else -> server.memberRenamed(id, newName)
             }
         }

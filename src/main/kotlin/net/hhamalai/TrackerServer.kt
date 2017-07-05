@@ -54,13 +54,12 @@ class TrackerServer {
         list.add(socket)
 
         if (list.size == 1) {
-            broadcast("{\"type\": \"join\", \"name\": \"$name\"}")
+            //broadcast("{\"type\": \"join\", \"name\": \"$name\"}")
         }
 
         val currentLocations = trackerDatabase.getMostRecents()
         for (currentLocation in currentLocations) {
             val jsonized = gson.toJson(currentLocation)
-            println(jsonized)
             socket.send(Frame.Text(jsonized))
         }
         val messages = synchronized(lastMessages) { lastMessages.toList() }
@@ -71,7 +70,8 @@ class TrackerServer {
 
     suspend fun memberRenamed(member: String, to: String) {
         val oldName = memberNames.put(member, to) ?: member
-        broadcast("{\"type\": \"rename\", \"oldname\": \"$oldName\"  \"newname\": \"$to\"}")
+        // XXX: Handle member renamings in client
+        // broadcast("{\"type\": \"rename\", \"oldname\": \"$oldName\"  \"newname\": \"$to\"}")
     }
 
     suspend fun memberLeft(member: String, socket: WebSocket) {
@@ -80,7 +80,7 @@ class TrackerServer {
 
         if (connections != null && connections.isEmpty()) {
             val name = memberNames[member] ?: member
-            broadcast("{\"type\": \"left\", \"name\": \"$name\"}")
+            //broadcast("{\"type\": \"left\", \"name\": \"$name\"}")
         }
     }
 
@@ -89,17 +89,15 @@ class TrackerServer {
     }
 
     suspend fun updateLocation(sender: String, location: String) {
-        val name = memberNames[sender] ?: sender
-
         val stringBuilder: StringBuilder = StringBuilder(location)
         val json: JsonObject = parser.parse(stringBuilder) as JsonObject
-        val latitude = json.double("lat")
-        val longitude = json.double("lon")
-        val velocity = json.double("vel")
-        val tripId = json.int("tripId")
-        json.put("name", name)
+        val latitude = json.double("latitude")
+        val longitude = json.double("longitude")
+        val velocity = json.double("velocity")
+        val objectId = json.string("objectId")?.toString() ?: ""
+
         trackerDatabase.updateLocation(
-                name,
+                objectId,
                 Location(latitude?.toFloat() ?: 0f, longitude?.toFloat() ?: 0f),
                 velocity?.toFloat() ?: 0f)
 

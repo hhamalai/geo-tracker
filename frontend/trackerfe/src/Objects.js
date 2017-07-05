@@ -19,7 +19,6 @@ class TrackedObject extends Component {
 
 class Objects extends Component {
   render() {
-    console.log(this.props)
     var trackedObjects = Object.values(this.props.trackedObjects).map(function(trackedObject, index) {
       return (
         <TrackedObject status={trackedObject} key={index}>
