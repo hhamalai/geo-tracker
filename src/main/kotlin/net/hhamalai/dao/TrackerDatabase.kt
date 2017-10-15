@@ -3,6 +3,7 @@ package net.hhamalai.dao
 import java.io.*
 
 import com.datastax.driver.core.Cluster
+import com.datastax.driver.core.exceptions.AlreadyExistsException
 import com.datastax.driver.mapping.MappingManager
 import com.datastax.driver.mapping.annotations.ClusteringColumn
 import com.datastax.driver.mapping.annotations.Table
@@ -58,6 +59,29 @@ class TrackerDatabase(val dbHost: String) : TrackerStorage {
     val locationUpdateMapper = manager.mapper(LocationUpdateT::class.java)
     val chatMessageMapper = manager.mapper(ChatMessageT::class.java)
 
+    init {
+        // Datastax java driver provides no means to create table schemas from ORM defined tables...
+        try {
+            session.execute("CREATE KEYSPACE tracker WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }")
+        } catch (e: AlreadyExistsException) {}
+        try {
+            session.execute("""CREATE TABLE tracker.location (
+                object_id varchar,
+                event_time timestamp,
+                latitude float,
+                longitude float,
+                velocity float,
+                PRIMARY KEY (object_id, event_time))""")
+        } catch (e: AlreadyExistsException) {}
+        try {
+            session.execute("""CREATE TABLE tracker.chat(
+                message_id varchar,
+                event_time timestamp,
+                message varchar,
+                PRIMARY KEY (message_id, event_time))""")
+        } catch (e: AlreadyExistsException) {}
+    }
+
     fun getUpdatesForObjectId(objectId: String): List<LocationUpdateT> {
         val results = session.execute("SELECT * FROM tracker.location WHERE object_id = ?", objectId)
         return locationUpdateMapper.map(results).toList()
@@ -92,7 +116,7 @@ class TrackerDatabase(val dbHost: String) : TrackerStorage {
     }
 
     override fun updateLocation(user: String, location: Location, velocity: Float): Unit  {
-        println("update location for " +  user + location)
+        println("update location for user: " +  user + " " + location)
         val locUpdate = LocationUpdateT(user, Date(), location.latitude, location.longitude, velocity)
         locationUpdateMapper.save(locUpdate)
     }
