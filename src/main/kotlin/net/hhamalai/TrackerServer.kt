@@ -5,12 +5,11 @@ package net.hhamalai
 import com.beust.klaxon.*
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.experimental.channels.ClosedSendChannelException
-import net.hhamalai.Messages.primaryKey
 import net.hhamalai.dao.TrackerDatabase
 import net.hhamalai.model.Location
 import org.jetbrains.ktor.util.buildByteBuffer
 import org.jetbrains.ktor.websocket.Frame
-import org.jetbrains.ktor.websocket.WebSocket
+import org.jetbrains.ktor.websocket.WebSocketSession
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SchemaUtils.create
 
@@ -42,15 +41,15 @@ object Trips : Table() {
 class TrackerServer {
     val usersCounter = AtomicInteger()
     val memberNames = ConcurrentHashMap<String, String>()
-    val trackerDatabase = TrackerDatabase("localhost")
-    val members = ConcurrentHashMap<String, MutableList<WebSocket>>()
+    val trackerDatabase = TrackerDatabase("db")
+    val members = ConcurrentHashMap<String, MutableList<WebSocketSession>>()
     val lastMessages = LinkedList<String>()
     val parser: Parser = Parser()
     val gson = GsonBuilder().create()
 
-    suspend fun memberJoin(member: String, socket: WebSocket) {
+    suspend fun memberJoin(member: String, socket: WebSocketSession) {
         val name = memberNames.computeIfAbsent(member) { "user${usersCounter.incrementAndGet()}" }
-        val list = members.computeIfAbsent(member) { CopyOnWriteArrayList<WebSocket>() }
+        val list = members.computeIfAbsent(member) { CopyOnWriteArrayList<WebSocketSession>() }
         list.add(socket)
 
         if (list.size == 1) {
@@ -74,7 +73,7 @@ class TrackerServer {
         // broadcast("{\"type\": \"rename\", \"oldname\": \"$oldName\"  \"newname\": \"$to\"}")
     }
 
-    suspend fun memberLeft(member: String, socket: WebSocket) {
+    suspend fun memberLeft(member: String, socket: WebSocketSession) {
         val connections = members[member]
         connections?.remove(socket)
 
@@ -94,7 +93,7 @@ class TrackerServer {
         val latitude = json.double("latitude")
         val longitude = json.double("longitude")
         val velocity = json.double("velocity")
-        val objectId = json.string("objectId")?.toString() ?: ""
+        val objectId = json.string("objectId") ?: ""
 
         trackerDatabase.updateLocation(
                 objectId,
@@ -163,7 +162,7 @@ class TrackerServer {
         }
     }
 
-    suspend fun List<WebSocket>.send(frame: Frame) {
+    suspend fun List<WebSocketSession>.send(frame: Frame) {
         forEach {
             try {
                 it.send(frame.copy())

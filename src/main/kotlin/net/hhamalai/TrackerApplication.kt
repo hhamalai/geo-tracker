@@ -2,24 +2,19 @@
 
 package net.hhamalai
 
-import com.google.gson.GsonBuilder
 import kotlinx.coroutines.experimental.channels.consumeEach
+import net.hhamalai.model.AppConfiguration
+import net.hhamalai.model.Location
+import net.hhamalai.model.MapConfiguration
 import org.jetbrains.ktor.application.*
 import org.jetbrains.ktor.content.*
 import org.jetbrains.ktor.features.*
-import org.jetbrains.ktor.http.ContentType
+import org.jetbrains.ktor.gson.*
 import org.jetbrains.ktor.websocket.*
-import org.jetbrains.ktor.logging.*
 import org.jetbrains.ktor.routing.*
 import org.jetbrains.ktor.locations.*
-import org.jetbrains.ktor.request.acceptItems
-import org.jetbrains.ktor.request.host
-import org.jetbrains.ktor.request.port
-import org.jetbrains.ktor.sessions.session
-import org.jetbrains.ktor.sessions.sessionOrNull
-import org.jetbrains.ktor.sessions.withCookieByValue
-import org.jetbrains.ktor.sessions.withSessions
-import org.jetbrains.ktor.transform.transform
+import org.jetbrains.ktor.response.respond
+import org.jetbrains.ktor.sessions.*
 import org.jetbrains.ktor.util.nextNonce
 import java.time.Duration
 
@@ -33,22 +28,32 @@ fun Application.main() {
     install(WebSockets) {
         pingPeriod = Duration.ofMinutes(1)
     }
+    install(GsonSupport) {
+        setPrettyPrinting()
+    }
+
     routing {
-        withSessions<Session> {
-            withCookieByValue()
+        install(Sessions) {
+            cookie<Session>("SESSION")
         }
 
-        val gson = GsonBuilder().create()
-
         intercept(ApplicationCallPipeline.Infrastructure) {
-            if (call.sessionOrNull<Session>() == null) {
-                call.session(Session(nextNonce()))
+            if (call.sessions.get<Session>() == null) {
+                call.sessions.set(Session(nextNonce()))
             }
-            if (call.request.acceptItems().any { it.value == "application/json" }) {
-                call.transform.register<JsonResponse> { value ->
-                    TextContent(gson.toJson(value.data), ContentType.Application.Json)
-                }
-            }
+        }
+
+        get("/v1/configuration") {
+            val appConfig = AppConfiguration(
+                    mapConfiguration = MapConfiguration(
+                            defaultMapPosition = Location(
+                                    latitude = 60.421858399999995f,
+                                    longitude = 23.455625799999997f
+                            ),
+                            defaultZoomLevel = 8
+                    )
+            )
+            call.respond(JsonResponse(appConfig))
         }
 
         get("/v1/locations") {
@@ -57,7 +62,7 @@ fun Application.main() {
         }
 
         webSocket("/ws") {
-            val session = call.sessionOrNull<Session>()
+            val session = call.sessions.get<Session>()
             if (session == null) {
                 close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "No session"))
                 return@webSocket
@@ -86,15 +91,6 @@ fun Application.main() {
 }
 
 data class Session(val id: String)
-
-private fun <T : Any> ApplicationCall.redirectUrl(t: T, secure: Boolean = true): String {
-    val hostPort = request.host()!! + request.port().let { port -> if (port == 80) "" else ":$port" }
-    val protocol = when {
-        secure -> "https"
-        else -> "http"
-    }
-    return "$protocol://$hostPort${application.feature(Locations).href(t)}"
-}
 
 internal suspend fun receivedMessage(id: String, command: String) {
     when {
